@@ -64,8 +64,6 @@ switch ($uri) {
 
     case '/products/add':
         $product = controller('ProductController', $twig, $db);
-        case '/products/add':
-        $product = controller('ProductController', $twig, $db);
         $method === 'POST' ? $product->store() : $product->create();
         break;
 
@@ -107,6 +105,7 @@ switch ($uri) {
 
         if (count($parts) == 1 && $parts[0] !== '') {
             controller('PublicController', $twig, $db)->profile($parts[0]);
+            break;
         }
 
         if (count($parts) == 2 && $parts[1] == 'products') {
