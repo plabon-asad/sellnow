@@ -2,29 +2,31 @@
 
 namespace SellNow\Controllers;
 
+use PDO;
+
 class AuthController
 {
 
     // Imperfect: Manual dependency injection via constructor every time
     private $twig;
-    private $db;
+    private PDO$db;
 
-    public function __construct($twig, $db)
+    public function __construct($twig, PDO $db)
     {
         $this->twig = $twig;
         $this->db = $db;
     }
 
-    public function loginForm()
+    public function loginForm(): void
     {
-        if (isset($_SESSION['user_id'])) {
-            header("Location: /dashboard");
-            exit;
+        if ($this->isAuthenticated()) {
+            $this->redirect('/dashboard');
         }
+
         echo $this->twig->render('auth/login.html.twig');
     }
 
-    public function login()
+    public function login(): void
     {
         $email = $_POST['email'] ?? '';
         $password = $_POST['password'] ?? '';
@@ -81,5 +83,30 @@ class AuthController
         echo $this->twig->render('dashboard.html.twig', [
             'username' => $_SESSION['username']
         ]);
+    }
+
+
+    /*
+    * Internal helper
+    */
+    private function isAuthenticated(): bool
+    {
+        return isset($_SESSION['user_id']);
+    }
+
+    private function redirect(string $url): void
+    {
+        header("Location: {$url}");
+        exit;
+    }
+
+    private function verifyPassword(string $input, string $stored): bool
+    {
+        // Supports legacy plaintext + modern hash
+        if (password_get_info($stored)['algo'] === 0) {
+            return hash_equals($stored, $input);
+        }
+
+        return password_verify($input, $stored);
     }
 }
