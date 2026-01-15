@@ -2,64 +2,115 @@
 
 namespace SellNow\Controllers;
 
+use PDO;
+
 class ProductController
 {
     private $twig;
-    private $db;
+    private PDO $db;
 
-    public function __construct($twig, $db)
+    private const UPLOAD_DIR = __DIR__ . '/../../public/uploads/';
+    private const MAX_FILE_SIZE = 5_000_000; // 5MB
+
+    public function __construct($twig, PDO $db)
     {
         $this->twig = $twig;
         $this->db = $db;
     }
 
-    public function create()
+    public function create(): void
     {
-        if (!isset($_SESSION['user_id'])) {
-            header("Location: /login");
-            exit;
-        }
+        $this->requireAuth();
+
         echo $this->twig->render('products/add.html.twig');
     }
 
-    public function store()
+    public function store(): void
     {
-        if (!isset($_SESSION['user_id']))
-            die("Unauthorized");
+        $this->requireAuth();
 
-        $title = $_POST['title'];
-        $price = $_POST['price'];
-        $slug = strtolower(str_replace(' ', '-', $title)) . '-' . rand(1000, 9999);
+        $title = trim($_POST['title'] ?? '');
+        $price = (float) ($_POST['price'] ?? 0);
 
-        $uploadDir = __DIR__ . '/../../public/uploads/';
-
-        $imagePath = '';
-        if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-            $name = time() . '_' . $_FILES['image']['name'];
-            move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $name);
-            $imagePath = 'uploads/' . $name;
+        if ($title === '' || $price <= 0) {
+            die('Invalid product data');
         }
 
-        $filePath = '';
-        if (isset($_FILES['product_file']['error']) && $_FILES['product_file']['error'] == 0) {
-            $name = time() . '_dl_' . $_FILES['product_file']['name'];
-            move_uploaded_file($_FILES['product_file']['tmp_name'], $uploadDir . $name);
-            $filePath = 'uploads/' . $name;
-        }
+        $slug = $this->generateSlug($title);
 
-        // Raw SQL
-        $sql = "INSERT INTO products (user_id, title, slug, price, image_path, file_path) VALUES (?, ?, ?, ?, ?, ?)";
-        $stmt = $this->db->prepare($sql);
+        $imagePath = $this->handleUpload('image', ['image/jpeg', 'image/png']);
+        $filePath  = $this->handleUpload('product_file', null);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO products (user_id, title, slug, price, image_path, file_path)
+             VALUES (:user, :title, :slug, :price, :image, :file)'
+        );
+
         $stmt->execute([
-            $_SESSION['user_id'],
-            $title,
-            $slug,
-            $price,
-            $imagePath,
-            $filePath
+            'user'  => $_SESSION['user_id'],
+            'title' => $title,
+            'slug'  => $slug,
+            'price' => $price,
+            'image' => $imagePath,
+            'file'  => $filePath,
         ]);
 
-        header("Location: /dashboard");
+        $this->redirect('/dashboard');
+    }
+
+    /**
+     * Internal helper
+    */
+    private function requireAuth(): void
+    {
+        if (!isset($_SESSION['user_id'])) {
+            $this->redirect('/login');
+        }
+    }
+
+    private function generateSlug(string $title): string
+    {
+        $base = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $title));
+        return trim($base, '-') . '-' . random_int(1000, 9999);
+    }
+
+    private function handleUpload(string $field, ?array $allowedTypes): ?string
+    {
+        if (
+            !isset($_FILES[$field]) ||
+            $_FILES[$field]['error'] !== UPLOAD_ERR_OK
+        ) {
+            return null;
+        }
+
+        if ($_FILES[$field]['size'] > self::MAX_FILE_SIZE) {
+            die('File too large');
+        }
+
+        if ($allowedTypes !== null) {
+            $mime = mime_content_type($_FILES[$field]['tmp_name']);
+            if (!in_array($mime, $allowedTypes, true)) {
+                die('Invalid file type');
+            }
+        }
+
+        if (!is_dir(self::UPLOAD_DIR)) {
+            mkdir(self::UPLOAD_DIR, 0777, true);
+        }
+
+        $safeName = time() . '_' . basename($_FILES[$field]['name']);
+        $target   = self::UPLOAD_DIR . $safeName;
+
+        if (!move_uploaded_file($_FILES[$field]['tmp_name'], $target)) {
+            die('Upload failed');
+        }
+
+        return 'uploads/' . $safeName;
+    }
+
+    private function redirect(string $url): void
+    {
+        header("Location: {$url}");
         exit;
     }
 }
