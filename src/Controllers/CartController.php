@@ -2,62 +2,95 @@
 
 namespace SellNow\Controllers;
 
+use PDO;
+
 class CartController
 {
     private $twig;
-    private $db;
+    private PDO $db;
 
-    public function __construct($twig, $db)
+    public function __construct($twig, PDO $db)
     {
         $this->twig = $twig;
         $this->db = $db;
     }
 
-    public function index()
+    public function index(): void
     {
-        $cart = $_SESSION['cart'] ?? [];
-        $total = 0;
+        $cart  = $_SESSION['cart'] ?? [];
+        $total = 0.0;
+
         foreach ($cart as $item) {
             $total += $item['price'] * $item['quantity'];
         }
 
         echo $this->twig->render('cart/index.html.twig', [
-            'cart' => $cart,
-            'total' => $total
+            'cart'  => array_values($cart),
+            'total' => $total,
         ]);
     }
 
-    public function add()
+    public function add(): void
     {
-        $id = $_POST['product_id'];
-        $quantity = $_POST['quantity'];
+        $productId = (int) ($_POST['product_id'] ?? 0);
+        $quantity  = max(1, (int) ($_POST['quantity'] ?? 1));
 
-        // Raw DB call
-        $stmt = $this->db->prepare("SELECT * FROM products WHERE product_id = ?");
-        $stmt->execute([$id]);
-        $product = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-        if (!$product) {
-            echo json_encode(['status' => 'error']);
-            exit;
+        if ($productId <= 0) {
+            $this->json(['status' => 'error', 'message' => 'Invalid product']);
         }
 
-        $_SESSION['cart'][] = [
-            'product_id' => $product['product_id'],
-            'title' => $product['title'],
-            'price' => $product['price'],
-            'quantity' => $quantity
-        ];
+        $stmt = $this->db->prepare(
+            'SELECT product_id, title, price FROM products WHERE product_id = :id AND is_active = 1'
+        );
+        $stmt->execute(['id' => $productId]);
 
-        header('Content-Type: application/json');
-        echo json_encode(['status' => 'success', 'count' => count($_SESSION['cart'])]);
+        $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$product) {
+            $this->json(['status' => 'error', 'message' => 'Product not found']);
+        }
+
+        if (!isset($_SESSION['cart'])) {
+            $_SESSION['cart'] = [];
+        }
+
+        // Key cart by product_id to avoid duplicates
+        if (isset($_SESSION['cart'][$productId])) {
+            $_SESSION['cart'][$productId]['quantity'] += $quantity;
+        } else {
+            $_SESSION['cart'][$productId] = [
+                'product_id' => (int) $product['product_id'],
+                'title'      => $product['title'],
+                'price'      => (float) $product['price'],
+                'quantity'   => $quantity,
+            ];
+        }
+
+        $this->json([
+            'status' => 'success',
+            'count'  => count($_SESSION['cart']),
+        ]);
+    }
+
+    public function clear(): void
+    {
+        unset($_SESSION['cart']);
+        $this->redirect('/cart');
+    }
+
+    /**
+     * Internal helper
+    */
+    private function redirect(string $url): void
+    {
+        header("Location: {$url}");
         exit;
     }
 
-    public function clear()
+    private function json(array $payload): void
     {
-        unset($_SESSION['cart']);
-        header("Location: /cart");
+        header('Content-Type: application/json');
+        echo json_encode($payload);
         exit;
     }
 }
