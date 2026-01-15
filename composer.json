@@ -14,8 +14,11 @@
     },
     "authors": [
         {
-            "name": "JoulesLabs - Tech Team",
-            "email": "developer@jouleslabs.com"
+            "name": "Md Asaduzzaman",
+            "email": "plabondotasad@gmail.com"
         }
-    ]
+    ],
+    "scripts": {
+        "migrate": "php scripts/migrate.php"
+    }
 }
