@@ -28,60 +28,76 @@ class AuthController
 
     public function login(): void
     {
-        $email = $_POST['email'] ?? '';
+        $email    = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
 
-        // Raw SQL, no Model
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-        if ($user && $password == $user['password']) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            header("Location: /dashboard");
-            exit;
-        } else {
-            header("Location: /login?error=Invalid credentials");
-            exit;
+        if ($email === '' || $password === '') {
+            $this->redirect('/login?error=Missing credentials');
         }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, username, password FROM users WHERE email = :email LIMIT 1'
+        );
+        $stmt->execute(['email' => $email]);
+
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Legacy-compatible password check
+        if (!$user || !$this->verifyPassword($password, $user['password'])) {
+            $this->redirect('/login?error=Invalid credentials');
+        }
+
+        $_SESSION['user_id']  = (int) $user['id'];
+        $_SESSION['username'] = $user['username'];
+
+        $this->redirect('/dashboard');
     }
 
-    public function registerForm()
+    public function registerForm(): void
     {
         echo $this->twig->render('auth/register.html.twig');
     }
 
-    public function register()
+    public function register(): void
     {
-        if (empty($_POST['email']) || empty($_POST['password']))
-            die("Fill all fields");
+        $email    = trim($_POST['email'] ?? '');
+        $username = trim($_POST['username'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $password = $_POST['password'] ?? '';
 
-        // Raw SQL
-        $sql = "INSERT INTO users (email, username, Full_Name, password) VALUES (?, ?, ?, ?)";
-        $stmt = $this->db->prepare($sql);
-        try {
-            $stmt->execute([
-                $_POST['email'],
-                $_POST['username'],
-                $_POST['fullname'],
-                $_POST['password']
-            ]);
-        } catch (\Exception $e) {
-            die("Error registering: " . $e->getMessage());
+        if ($email === '' || $username === '' || $password === '') {
+            die('Fill all required fields');
         }
 
-        header("Location: /login?msg=Registered successfully");
-        exit;
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO users (email, username, Full_Name, password)
+             VALUES (:email, :username, :fullname, :password)'
+        );
+
+        try {
+            $stmt->execute([
+                'email'    => $email,
+                'username' => $username,
+                'fullname' => $fullname,
+                'password' => $hashedPassword,
+            ]);
+        } catch (\Throwable $e) {
+            die('Registration failed');
+        }
+
+        $this->redirect('/login?msg=Registered successfully');
     }
 
-    public function dashboard()
+    public function dashboard(): void
     {
-        if (!isset($_SESSION['user_id']))
-            header("Location: /login");
+        if (!$this->isAuthenticated()) {
+            $this->redirect('/login');
+        }
 
         echo $this->twig->render('dashboard.html.twig', [
-            'username' => $_SESSION['username']
+            'username' => $_SESSION['username'],
         ]);
     }
 
