@@ -3,11 +3,13 @@
 namespace SellNow\Controllers;
 
 use PDO;
+use SellNow\Models\Product;
 
 class ProductController
 {
     private $twig;
     private PDO $db;
+    private Product $product;
 
     private const UPLOAD_DIR = __DIR__ . '/../../public/uploads/';
     private const MAX_FILE_SIZE = 5_000_000; // 5MB
@@ -16,6 +18,7 @@ class ProductController
     {
         $this->twig = $twig;
         $this->db = $db;
+        $this->product = new Product($db);
     }
 
     public function create(): void
@@ -41,19 +44,14 @@ class ProductController
         $imagePath = $this->handleUpload('image', ['image/jpeg', 'image/png']);
         $filePath  = $this->handleUpload('product_file', null);
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO products (user_id, title, slug, price, image_path, file_path)
-             VALUES (:user, :title, :slug, :price, :image, :file)'
+        $this->product->create(
+            (int) $_SESSION['user_id'],
+            $title,
+            $slug,
+            $price,
+            $imagePath,
+            $filePath
         );
-
-        $stmt->execute([
-            'user'  => $_SESSION['user_id'],
-            'title' => $title,
-            'slug'  => $slug,
-            'price' => $price,
-            'image' => $imagePath,
-            'file'  => $filePath,
-        ]);
 
         $this->redirect('/dashboard');
     }
