@@ -3,6 +3,7 @@
 namespace SellNow\Controllers;
 
 use PDO;
+use SellNow\Models\User;
 
 class AuthController
 {
@@ -10,11 +11,15 @@ class AuthController
     // Imperfect: Manual dependency injection via constructor every time
     private $twig;
     private PDO$db;
+    private User $user;
 
     public function __construct($twig, PDO $db)
     {
         $this->twig = $twig;
         $this->db = $db;
+
+        // Initialize User model
+        $this->user = new User($db);
     }
 
     public function loginForm(): void
@@ -35,15 +40,11 @@ class AuthController
             $this->redirect('/login?error=Missing credentials');
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT id, username, password FROM users WHERE email = :email LIMIT 1'
-        );
-        $stmt->execute(['email' => $email]);
+        // Fetch user via user model
+        $user = $this->user->findByEmail($email);
 
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Legacy-compatible password check
-        if (!$user || !$this->verifyPassword($password, $user['password'])) {
+        // Password verification to user model
+        if (!$user || !$this->user->verifyPassword($password, $user['password'])) {
             $this->redirect('/login?error=Invalid credentials');
         }
 
@@ -68,21 +69,10 @@ class AuthController
         if ($email === '' || $username === '' || $password === '') {
             die('Fill all required fields');
         }
-
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-        $stmt = $this->db->prepare(
-            'INSERT INTO users (email, username, Full_Name, password)
-             VALUES (:email, :username, :fullname, :password)'
-        );
-
+        
+        // User create by model
         try {
-            $stmt->execute([
-                'email'    => $email,
-                'username' => $username,
-                'fullname' => $fullname,
-                'password' => $hashedPassword,
-            ]);
+            $this->user->create($email, $username, $fullname, $password);
         } catch (\Throwable $e) {
             die('Registration failed');
         }
