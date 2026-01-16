@@ -1,250 +1,125 @@
-# SellNow (Assessment Project)
+# SellNow — Assessment Project
 
-This is a **simplified, imperfect** platform for selling digital products, built for **candidate assessment functionality**.
-It contains **intentional flaws, bad practices, and security holes**.
+## Project Intro
 
-## Project Overview
+SellNow is a **small, intentionally imperfect** PHP application built for an engineering assessment.
 
-A platform where:
-1. Users register and get a public profile (`/username`).
-2. Users can upload products (images + digital files).
-3. Buyers can browse, add to cart, and "checkout".
+The goal of this project is **not** to deliver a production-ready marketplace, but to demonstrate:
+- how I analyze an inherited codebase,
+- how I prioritize problems,
+- and how I improve architecture **incrementally without rewriting everything**.
 
-## Setup Instructions
+---
 
-1. **Install Dependencies**:
+## How to Run
+
+### Requirements
+- PHP 8.x
+- Composer
+- SQLite
+
+### Setup
+
+1. Install dependencies:
    ```bash
    composer install
    ```
 
-2. **Database**:
-   The project is configured to use SQLite by default.
-   Initialize the database:
+2. Initialize database:
    ```bash
    sqlite3 database/database.sqlite < database/schema.sql
    ```
-   *Note: If you switch to MySQL, update `src/Config/Database.php`.*
-
-3. **Run Server**:
-   Use PHP built-in server:
+3. Run the application:
    ```bash
    php -S localhost:8000 -t public
    ```
-
-4. **Access**:
+4. Open in browser:
+   ```bash
    http://localhost:8000
+   ```
+### What Was the Task
 
+I was given a **partially working PHP application** with:
 
-## Directory Structure
+- architectural smells,
+- inconsistent database design,
+- mixed responsibilities,
+- and missing best practices.
 
-- `public/`: Web root (index.php, uploads).
-- `src/`: Application classes (Controllers, Models, Config).
-- `templates/`: Twig views.
-- `database/`: Schema and SQLite file.
+**Constraints:**
+- No full framework (Laravel, Symfony, etc.)
+- Do not rewrite from scratch
+- Show evolution, not perfection
 
-Good luck!
-
-# SellNow – Reviewer Notes & Improvement Plan
-
-> **Purpose of this document**
->
-> This README is written for reviewers. It explains **what exists**, **what is intentionally imperfect**, and **how the project is being improved step‑by‑step without breaking behavior**.
-
----
-
-## 1. Project Overview
-
-SellNow is a lightweight PHP (MVC-style) marketplace application built without a full framework.
-
-**Core features:**
-
-* User authentication (login / register)
-* Product creation & listing
-* Cart & checkout flow
-* Public seller profile pages
-* SQLite database for assessment simplicity
-
-The goal of this project is **clarity, correctness, and incremental improvement**, not feature completeness.
+The task was to demonstrate engineering maturity, not feature count.
 
 ---
 
-## 2. Architecture (Current State)
+### How I Approached and Improved the Project (Step by Step)
 
-```
-public/        → Web root (index.php, uploads)
+This project was improved incrementally, with each change committed separately for checking clarity.
+
+### Step 1 — Audit Before Action
+- Reviewed schema, controllers, and data flow
+- Identified responsibility leaks and risky patterns
+- Documented issues instead of immediately “fixing everything”
+
+### Step 2 — Stabilize the Foundation
+- Hardened database usage without breaking data
+- Centralized database access
+- Avoided destructive schema changes
+
+### Step 3 — Reduce Controller Responsibility
+- Began extracting Models (User, Product)
+- Moved query logic out of controllers gradually
+- Kept behavior unchanged during refactor
+
+### Step 4 — Improve Data & Security Contracts
+- Server-side validation of critical values
+- Prepared statements everywhere
+- Safer file upload handling
+- Explicit payment provider whitelisting
+
+Each commit is small, readable, and reversible.
+
+## Project Structure
+```pgsql
+public/        → Entry point, uploads
 src/
-  Controllers/ → HTTP controllers (thin, request-driven)
-  Config/      → Database connection
-  Models/      → (being introduced gradually)
-templates/     → Twig views (presentation only)
-database/      → schema.sql + SQLite file
-storage/       → logs (runtime data)
+  Controllers/ → HTTP layer (thin)
+  Models/      → Domain access (introduced gradually)
+  Config/      → Database configuration
+templates/     → Twig views
+database/      → SQLite database + schema
+storage/       → Runtime logs
 ```
 
-### Design principles followed
-
-* Controllers are intentionally **thin**
-* No hidden magic or framework assumptions
-* Explicit SQL (easy to audit)
-* Incremental refactoring instead of rewrite
-
 ---
 
-## 3. Intentional Imperfections (For Review)
+### Intentional Limitations (Left on Purpose)
 
-This project **intentionally started imperfect** so improvements can be demonstrated clearly.
+Some features were intentionally not completed to keep scope realistic:
 
-Examples:
+- No role separation (seller vs buyer) yet
+- Seller registration not restricted yet
+- Payments are simulated
+- No CSRF tokens yet
 
-* Mixed casing in database schema
-* Missing foreign key constraints (initially)
-* Controllers performing some query logic
-* No role separation (seller vs buyer) yet
+These are known trade-offs, not oversights.
 
-Each issue is being addressed **one step at a time**, with commits that are easy to review.
+### What I Would Add Next (With More Time)
 
----
+- Role-based authorization (seller / buyer / admin)
+- CSRF protection
+- Service layer for Payments & Cart
+- Database-backed order storage
+- Better error handling & logging
 
-## 4. Database Strategy
+### Notes (Important)
 
-* SQLite is used for portability during assessment
-* `schema.sql` represents the **baseline schema**
-* Schema hardening is done **without breaking existing data**
+- No framework was used intentionally
+- Code favors clarity over cleverness
+- Changes show evolution, not replacement
+- Commit history reflects (github) thought process
 
-**Rules:**
-
-* No destructive migrations
-* No data loss
-* Schema changes are documented before applied
-
----
-
-## 5. Authentication & Users
-
-Current behavior:
-
-* Any registered user can log in
-* No role distinction yet (seller/buyer)
-
-Planned (incremental):
-
-* Introduce `role` column (`buyer`, `seller`, `admin`)
-* Seller registration not publicly open
-* Only sellers can create products
-
-This is deferred intentionally to keep review scope focused.
-
----
-
-## 6. Product & Checkout Flow
-
-### Current flow
-
-1. User registers / logs in
-2. Authenticated user can create products
-3. Products appear on public seller profiles
-4. Cart → checkout → payment simulation
-
-### Notes
-
-* Checkout totals are recalculated server-side
-* Payment providers are whitelisted constants
-* Transactions are logged to file (not DB yet)
-
----
-
-## 7. Security Considerations
-
-Implemented:
-
-* Prepared statements (PDO)
-* Password hashing with backward compatibility
-* File upload size & MIME checks
-* Server-side price calculation
-
-Planned:
-
-* CSRF protection
-* Role-based authorization
-* File storage abstraction
-
----
-
-## 8. Refactoring Roadmap
-
-The refactor follows this **strict order**:
-
-1. ✅ Database hardening (non-breaking)
-2. 🔄 Extract read-only Models (User, Product)
-3. 🔄 Introduce role-based authorization
-4. 🔄 Service extraction (Cart / Payment)
-5. 🔄 Improve error handling
-
-Each step is committed separately for reviewer clarity.
-
----
-
-## 9. Reviewer Notes
-
-* No framework was used intentionally
-* Code favors **explicitness over abstraction**
-* Every change is incremental and reversible
-* Comments explain *why*, not *what*
-
----
-
-## 10. How to Review This Project
-
-Recommended order:
-
-1. `schema.sql`
-2. `Database.php`
-3. Controllers (Auth → Product → Checkout → Public)
-4. Commits related to model extraction
-5. This README
-
----
-
-### Conclusion
-
-## Project Manifesto
-1. The Audit (Honest Assessment)
-
-This codebase was intentionally inherited in an imperfect state.
-### Key issues identified early:
-
-Mixed responsibilities (controllers handling SQL, validation, and logic)
-
-Inconsistent database schema (naming, missing constraints)
-
-No clear domain boundaries (no Models or Services)
-
-Business rules scattered across controllers
-
-These were treated as signals, not mistakes.
-
-2. Priority Matrix (Why X before Y)
-
-Refactoring was guided by impact vs risk:
-
-Structure before features
-→ Introduced Models to reduce controller responsibility.
-
-Safety before abstraction
-→ Read-only models first, no breaking changes.
-
-Reviewer clarity over completeness
-→ Chose incremental, visible improvements instead of a full rewrite.
-
-Some issues (roles, permissions, payments) were intentionally deferred to keep scope realistic.
-
-3. Trade-offs (Conscious Decisions)
-
-Did not introduce a framework → to keep changes explainable.
-
-Kept some duplication temporarily → to avoid risky refactors.
-
-Used sessions instead of a full auth system → simplicity over completeness.
-
-The goal was code that explains itself, not perfection.
-
+This project represents how I work in real inherited systems.
